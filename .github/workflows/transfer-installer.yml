@@ -1,0 +1,52 @@
+name: Transfer verified installer to release
+on:
+  push:
+    branches: [release/v1.0.0]
+    paths: [.github/workflows/transfer-installer.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SOURCE_RUN: "38778699896"
+      EXPECTED_COMMIT: "505e9e75e7177ab1554ae52f54c129a39adfc83a"
+      RELEASE_ID: "414109110"
+    steps:
+      - name: Verify build source and download artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" --jq '.head_sha')"
+          test "$actual" = "$EXPECTED_COMMIT"
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --name Ritm-Windows-x64 --dir release-assets
+          cd release-assets
+          sha256sum --check Ritm-Setup-1.0.0-x64.exe.sha256
+      - name: Upload verified files into existing draft
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, json, pathlib, hashlib, urllib.request, urllib.parse
+          token = os.environ['GH_TOKEN']
+          repo = os.environ['GITHUB_REPOSITORY']
+          rid = os.environ['RELEASE_ID']
+          headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
+          request = urllib.request.Request(f'https://api.github.com/repos/{repo}/releases/{rid}', headers=headers)
+          release = json.load(urllib.request.urlopen(request, timeout=30))
+          assert release['tag_name'] == 'v1.0.0' and release['draft']
+          upload = release['upload_url'].split('{')[0]
+          assert urllib.parse.urlparse(upload).hostname == 'uploads.github.com'
+          files = ['Ritm-Setup-1.0.0-x64.exe', 'Ritm-Setup-1.0.0-x64.exe.sha256']
+          for name in files:
+              assert not any(a['name'] == name for a in release['assets']), 'Asset already exists'
+              data = pathlib.Path('release-assets', name).read_bytes()
+              request = urllib.request.Request(upload + '?name=' + urllib.parse.quote(name), data=data, headers={**headers, 'Content-Type': 'application/octet-stream'}, method='POST')
+              asset = json.load(urllib.request.urlopen(request, timeout=180))
+              assert asset['state'] == 'uploaded' and asset['size'] == len(data)
+              if asset.get('digest'):
+                  assert asset['digest'] == 'sha256:' + hashlib.sha256(data).hexdigest()
+              print('Uploaded and verified:', asset['name'], asset['size'])
+          PY
