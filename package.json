@@ -1,16 +1,16 @@
 {
   "name": "ritm-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Ритм — личный конструктор расписания",
   "author": "Nepl",
   "private": true,
   "main": "desktop/main.cjs",
   "scripts": {
     "start": "node desktop/prepare.cjs && electron .",
-    "test": "node --check app.js && node --check planner.js && node --check desktop/main.cjs && node test-planner.cjs && node --test desktop/policy.test.cjs",
+    "test": "node --check app.js && node --check planner.js && node --check tour.js && node --check updater-ui.js && node --check desktop/main.cjs && node test-planner.cjs && node --test desktop/*.test.cjs",
     "prepare:desktop": "node desktop/prepare.cjs",
     "smoke": "node desktop/smoke.cjs",
-    "build:win": "node desktop/prepare.cjs && electron-builder --win nsis --x64 --publish never && node desktop/checksum.cjs"
+    "build:win": "node desktop/prepare.cjs && electron-builder --win nsis --x64 --publish never && node desktop/checksum.cjs && node desktop/verify-update-files.cjs"
   },
   "devDependencies": {
     "electron": "44.7.2",
@@ -20,11 +20,30 @@
     "appId": "io.github.pankovvlad313.ritm",
     "productName": "Ритм",
     "executableName": "Ritm",
-    "directories": { "output": "release", "buildResources": ".desktop" },
-    "files": ["desktop/main.cjs", "desktop/policy.cjs", ".desktop/web/**", ".desktop/icon.png", "package.json"],
+    "directories": {
+      "output": "release",
+      "buildResources": ".desktop"
+    },
+    "files": [
+      "desktop/main.cjs",
+      "desktop/policy.cjs",
+      "desktop/preload.cjs",
+      "desktop/updates.cjs",
+      "desktop/renderer-smoke.cjs",
+      ".desktop/web/**",
+      ".desktop/icon.png",
+      "package.json"
+    ],
     "asar": true,
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": ".desktop/icon.ico",
       "artifactName": "Ritm-Setup-${version}-${arch}.${ext}"
     },
@@ -40,8 +59,23 @@
       "uninstallerIcon": ".desktop/icon.ico",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
-      "installerLanguages": ["ru_RU", "en_US"],
+      "installerLanguages": [
+        "ru_RU",
+        "en_US"
+      ],
       "language": "1049"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "pankovvlad313-png",
+        "repo": "ritm",
+        "releaseType": "release"
+      }
+    ],
+    "electronUpdaterCompatibility": ">=2.16"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
   }
 }

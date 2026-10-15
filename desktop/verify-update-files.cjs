@@ -1,0 +1,13 @@
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict');
+const yaml=require('js-yaml'),pkg=require('../package.json');
+const directory=process.argv[2]||'release',manifest=yaml.load(fs.readFileSync(path.join(directory,'latest.yml'),'utf8'));
+assert.equal(manifest.version,pkg.version);
+assert(Array.isArray(manifest.files)&&manifest.files.length===1);
+const entry=manifest.files[0],name=`Ritm-Setup-${pkg.version}-x64.exe`;
+assert.equal(entry.url,name);assert.equal(path.basename(entry.url),entry.url);
+const installer=fs.readFileSync(path.join(directory,name));
+assert.equal(entry.size,installer.length);assert.equal(entry.sha512,crypto.createHash('sha512').update(installer).digest('base64'));
+assert(fs.statSync(path.join(directory,name+'.blockmap')).size>0);
+const config=yaml.load(fs.readFileSync(path.join(directory,'win-unpacked/resources/app-update.yml'),'utf8'));
+assert.equal(config.provider,'github');assert.equal(config.owner,'pankovvlad313-png');assert.equal(config.repo,'ritm');assert(!config.token);
+console.log('PASS: latest.yml version, installer name, size, SHA512 and differential blockmap');

@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 20
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -23,6 +25,9 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+      - name: Read application version
+        id: version
+        run: '"version=$((Get-Content package.json -Raw | ConvertFrom-Json).version)" >> $env:GITHUB_OUTPUT'
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
       - name: Test planner and desktop boundaries
@@ -42,6 +47,51 @@ jobs:
           path: |
             release/Ritm-Setup-*.exe
             release/Ritm-Setup-*.sha256
+            release/Ritm-Setup-*.blockmap
+            release/latest.yml
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
+
+  publish:
+    name: Publish verified release and update feed
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download verified build
+        run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name Ritm-Windows-x64 --dir release-assets
+      - name: Verify installer checksum
+        working-directory: release-assets
+        run: sha256sum --check "Ritm-Setup-$VERSION-x64.exe.sha256"
+      - name: Publish stable release once per version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          files=("release-assets/Ritm-Setup-$VERSION-x64.exe" "release-assets/Ritm-Setup-$VERSION-x64.exe.sha256" "release-assets/Ritm-Setup-$VERSION-x64.exe.blockmap" "release-assets/latest.yml")
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' > release-state.txt; then
+            if test "$(cat release-state.txt)" = "false"; then
+              echo "Version $VERSION is already public; bump package.json to publish another update."
+              exit 0
+            fi
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+            gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            notes="release-notes/$tag.md"
+            if ! test -f "$notes"; then
+              printf 'Новая версия Ритма. Данные сохраняются при обновлении.\n' > release-notes-fallback.md
+              notes=release-notes-fallback.md
+            fi
+            gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Ритм $VERSION — Windows" --notes-file "$notes" --draft
+          fi
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
