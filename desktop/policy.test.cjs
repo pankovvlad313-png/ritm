@@ -1,0 +1,4 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const {assetFor,internal,csp}=require('./policy.cjs');
+test('serves only bundled web assets',()=>{assert.equal(assetFor('ritm://app/'),'index.html');assert.equal(assetFor('ritm://app/app.js'),'app.js');for(const url of ['ritm://app/package.json','ritm://app/desktop/main.cjs','ritm://other/app.js','https://app/app.js','ritm://user@app/app.js','ritm://app/%2e%2e/package.json','ritm://app/%2Fapp.js','ritm://app/app.js/extra'])assert.equal(assetFor(url),null,url);assert.equal(assetFor('ritm://app/app.js','POST'),null);});
+test('blocks external navigation and remote requests',()=>{assert(internal('ritm://app/index.html'));assert(!internal('https://example.com'));assert(!internal('file:///C:/secret.txt'));assert(!internal('javascript:alert(1)'));assert(csp.includes("connect-src 'none'"));assert(csp.includes("script-src 'self'"));});

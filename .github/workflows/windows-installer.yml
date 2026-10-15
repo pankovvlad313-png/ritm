@@ -1,0 +1,47 @@
+name: Windows installer
+
+on:
+  push:
+    branches: [windows-installer]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and verify Windows x64 installer
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Test planner and desktop boundaries
+        run: npm test
+      - name: Prepare offline application
+        run: npm run prepare:desktop
+      - name: Verify desktop renderer
+        run: npm run smoke
+      - name: Build Windows installer
+        run: npm run build:win
+      - name: Verify packaged application
+        run: node desktop/smoke.cjs --packaged
+      - name: Upload installer and SHA256
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Ritm-Windows-x64
+          path: |
+            release/Ritm-Setup-*.exe
+            release/Ritm-Setup-*.sha256
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0

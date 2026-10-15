@@ -1,0 +1,10 @@
+const {spawn}=require('node:child_process');
+const path=require('node:path');
+const packaged=process.argv.includes('--packaged');
+const executable=packaged?path.resolve('release/win-unpacked/Ritm.exe'):require('electron');
+const args=packaged?['--smoke-test']:['.','--smoke-test'];
+const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
+const child=spawn(executable,args,{env,stdio:'inherit',windowsHide:true});
+const timer=setTimeout(()=>{child.kill();process.exitCode=1;console.error('Desktop smoke test timed out');},45000);
+child.on('error',error=>{clearTimeout(timer);console.error(error);process.exitCode=1;});
+child.on('exit',code=>{clearTimeout(timer);process.exitCode=code===0?0:1;});
