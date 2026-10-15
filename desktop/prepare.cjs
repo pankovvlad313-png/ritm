@@ -3,7 +3,7 @@ const path=require('node:path');
 const zlib=require('node:zlib');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'.desktop');
 fs.mkdirSync(path.join(out,'web'),{recursive:true});
-for(const file of ['index.html','app.js','planner.js','style.css','tour-model.js','tour.js','tour.css','updater-ui.js']){
+for(const file of ['index.html','app.js','planner.js','style.css','tour-model.js','tour.js','tour.css','updater-ui.js','config.js','features.js','features.css']){
   let content=fs.readFileSync(path.join(root,file),'utf8');
   if(file==='style.css')content=content.replace(/^@import[^;]+;\s*/,'');
   fs.writeFileSync(path.join(out,'web',file),content);

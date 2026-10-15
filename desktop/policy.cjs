@@ -1,4 +1,4 @@
-const allowed = new Set(['/index.html', '/app.js', '/planner.js', '/style.css', '/tour-model.js', '/tour.js', '/tour.css', '/updater-ui.js']);
+const allowed = new Set(['/index.html', '/app.js', '/planner.js', '/style.css', '/tour-model.js', '/tour.js', '/tour.css', '/updater-ui.js','/config.js','/features.js','/features.css']);
 const types = {'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
 const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
 function assetFor(url, method='GET') {

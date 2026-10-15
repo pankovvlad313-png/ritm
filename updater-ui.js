@@ -1,12 +1,12 @@
 (function(){
   'use strict';
   const api=window.ritmDesktop;if(!api)return;
-  let update={status:'idle',currentVersion:'1.1.0',percent:0};
+  let update={status:'idle',currentVersion:'1.2.0',percent:0};
   const labels={idle:'Обновления проверяются автоматически.',checking:'Проверяем обновления…',current:'Установлена последняя версия.',downloading:'Загружаем обновление',ready:'Обновление готово к установке.',installing:'Перезапускаем приложение…',error:'Не удалось проверить или скачать обновление. Проверьте интернет и попробуйте ещё раз.',disabled:'В режиме разработки обновления отключены.'};
   function draw(){
     const main=document.querySelector('main');
     if(main&&document.querySelector('#settings-form')&&!document.querySelector('#desktop-updates')){
-      const panel=document.createElement('section');panel.className='panel';panel.id='desktop-updates';panel.innerHTML='<h2>Версия и обновления</h2><p class="update-version"></p><p class="update-status" role="status"></p><div class="actions"><button class="btn" data-update-action="check">Проверить обновления</button><button class="btn primary" data-update-action="install" hidden>Перезапустить и обновить</button></div><p>Новые версии загружаются в фоне и устанавливаются при закрытии приложения. Дела и отметки сохраняются.</p>';main.insertBefore(panel,main.querySelector('footer'));
+      const panel=document.createElement('section');panel.className='panel';panel.id='desktop-updates';panel.innerHTML='<h2>Версия и обновления</h2><p class="update-version"></p><p class="update-status" role="status"></p><div class="actions"><button class="btn" data-update-action="check">Проверить обновления</button><button class="btn primary" data-update-action="install" hidden>Перезапустить и обновить</button></div><p>Новые версии загружаются в фоне и устанавливаются при полном выходе через «Файл → Выйти». Дела и отметки сохраняются.</p>';main.insertBefore(panel,main.querySelector('footer'));
     }
     const panel=document.querySelector('#desktop-updates');
     if(panel){panel.querySelector('.update-version').textContent='Ритм '+update.currentVersion;panel.querySelector('.update-status').textContent=labels[update.status]+(update.status==='downloading'?' · '+update.percent+'%':'')+(update.version?' · '+update.version:'');panel.querySelector('[data-update-action="check"]').disabled=['checking','downloading','ready','installing','disabled'].includes(update.status);panel.querySelector('[data-update-action="install"]').hidden=update.status!=='ready';}
