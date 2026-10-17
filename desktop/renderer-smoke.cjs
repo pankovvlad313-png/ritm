@@ -68,7 +68,7 @@ module.exports=async function(){
   await until(()=>!document.querySelector('#calendar-dialog').open);
   const corrected=Object.values(state.weeks).flatMap(w=>w.entries).find(e=>e.id==='calendar-pinned');if(!corrected.pinned||corrected.start===1155||P.conflicts(state.tasks,state.settings,[corrected]).length)throw Error('Rebooking still conflicts with work');
   if(!document.querySelector('#week-capacity'))throw Error('Missing week capacity report');
-  await window.RitmEnhancements.flush();const calendarWorks=true;
+  await window.RitmEnhancements.flush();const calendarWorks=true;document.querySelector('[data-action="nav"][data-view="settings"]').click();
 
   return {...initial,calendarWorks,enhancements,backupWorks,storageWorks,practicePreserved,guideComplete,updaterPanel:!!document.querySelector('#desktop-updates'),updaterDisabled:desktopState.status==='disabled',version:desktopState.currentVersion};
 };
