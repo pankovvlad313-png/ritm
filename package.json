@@ -1,13 +1,13 @@
 {
   "name": "ritm-desktop",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Ритм — личный конструктор расписания",
   "author": "Nepl",
   "private": true,
   "main": "desktop/main.cjs",
   "scripts": {
     "start": "node desktop/prepare.cjs && electron .",
-    "test": "node --check features.js && node --check config.js && node --check app.js && node --check planner.js && node --check tour.js && node --check updater-ui.js && node --check desktop/main.cjs && node test-planner.cjs && node --test desktop/*.test.cjs",
+    "test": "node --check calendar-ui.js && node --check features.js && node --check config.js && node --check app.js && node --check planner.js && node --check tour.js && node --check updater-ui.js && node --check desktop/main.cjs && node test-planner.cjs && node --test desktop/*.test.cjs",
     "prepare:desktop": "node desktop/prepare.cjs",
     "smoke": "node desktop/smoke.cjs",
     "build:win": "node desktop/prepare.cjs && electron-builder --win nsis --x64 --publish never && node desktop/checksum.cjs && node desktop/verify-update-files.cjs"

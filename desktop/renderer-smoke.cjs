@@ -17,7 +17,7 @@ module.exports=async function(){
   await window.RitmEnhancements.ready;
   const form=document.querySelector('#settings-form');
   if(form.querySelectorAll('.rule-row').length!==7)throw Error('Missing daily settings');
-  for(let i=0;i<7;i++){form.elements['start-'+i].value='19:00';form.elements['end-'+i].value='22:00';form.elements['minutes-'+i].value=i===6?'0':'120';form.elements['tasks-'+i].value='4';}
+  for(let i=0;i<7;i++){form.elements['windows-'+i].value='19:00–22:00';form.elements['minutes-'+i].value=i===6?'0':'120';form.elements['tasks-'+i].value='4';}
   form.requestSubmit();
   if(state.settings.dayRules[0].start!==1140||state.settings.dayRules[6].minutes!==0)throw Error('Settings not saved');
   document.querySelector('[data-action="nav"][data-view="tasks"]').click();document.querySelector('[data-action="add"]').click();
@@ -49,5 +49,26 @@ module.exports=async function(){
   document.querySelector('[data-action="nav"][data-view="settings"]').click();
   const enhancements=!!document.querySelector('#settings-form .rule-row')&&!!document.querySelector('[data-feature="backups"]');
 
-  return {...initial,enhancements,backupWorks,storageWorks,practicePreserved,guideComplete,updaterPanel:!!document.querySelector('#desktop-updates'),updaterDisabled:desktopState.status==='disabled',version:desktopState.currentVersion};
+
+  const calendarForm=document.querySelector('#settings-form');
+  for(let i=0;i<7;i++)calendarForm.elements['windows-'+i].value='07:30–08:00, 19:00–22:00';
+  calendarForm.elements.breakMinutes.value='10';calendarForm.requestSubmit();
+  if(state.settings.dayRules[0].windows.length!==2||state.settings.breakMinutes!==10)throw Error('Multi-window settings not saved');
+  document.querySelector('[data-calendar="add-busy"]').click();
+  const busyForm=document.querySelector('#busy-form');busyForm.elements.title.value='Учебная работа';busyForm.elements.start.value='19:15';busyForm.elements.end.value='19:45';for(const el of busyForm.querySelectorAll('[name="days"]'))el.checked=true;busyForm.requestSubmit();
+  await until(()=>state.settings.busyBlocks.some(b=>b.title==='Учебная работа'));
+  document.querySelector('[data-calendar="add-exception"]').click();
+  const exceptionDate=P.add(TODAY,3),exceptionForm=document.querySelector('#exception-form');exceptionForm.elements.date.value=exceptionDate;exceptionForm.elements.mode.value='off';exceptionForm.requestSubmit();
+  await until(()=>state.settings.exceptions[exceptionDate]?.windows?.length===0);
+  if(P.windows(state.settings,exceptionDate).length)throw Error('Full day exception ignored');
+  let conflictDate=P.add(TODAY,1);while((P.parse(conflictDate).getDay()+6)%7===6||conflictDate===exceptionDate)conflictDate=P.add(conflictDate,1);
+  state.tasks.push({...carryTask,id:'calendar-conflict',title:'Закреплённое дело в занятое время'});const conflictWeek=P.monday(conflictDate);if(!state.weeks[conflictWeek])state.weeks[conflictWeek]={entries:[],issues:[]};state.weeks[conflictWeek].entries.push({id:'calendar-pinned',taskId:'calendar-conflict',date:conflictDate,start:1155,pinned:true,done:false});save();week=conflictWeek;view='week';render();
+  document.querySelector('[data-calendar="conflicts"]').click();
+  const rebook=document.querySelector('[data-calendar="rebook"][data-id="calendar-pinned"]');if(!rebook)throw Error('Pinned conflict has no rebooking proposal');rebook.click();
+  await until(()=>!document.querySelector('#calendar-dialog').open);
+  const corrected=Object.values(state.weeks).flatMap(w=>w.entries).find(e=>e.id==='calendar-pinned');if(!corrected.pinned||corrected.start===1155||P.conflicts(state.tasks,state.settings,[corrected]).length)throw Error('Rebooking still conflicts with work');
+  if(!document.querySelector('#week-capacity'))throw Error('Missing week capacity report');
+  await window.RitmEnhancements.flush();const calendarWorks=true;
+
+  return {...initial,calendarWorks,enhancements,backupWorks,storageWorks,practicePreserved,guideComplete,updaterPanel:!!document.querySelector('#desktop-updates'),updaterDisabled:desktopState.status==='disabled',version:desktopState.currentVersion};
 };

@@ -72,7 +72,7 @@ function createWindow(){
     window.webContents.once('did-finish-load',async()=>{
       try{
         const result=await window.webContents.executeJavaScript('('+require('./renderer-smoke.cjs').toString()+')()');
-        if(!result.title.includes('Ритм')||result.days!==7||(result.cards<0||result.cards>22)||result.hasNode||!result.storageWorks||!result.practicePreserved||!result.guideComplete||!result.enhancements||!result.backupWorks||!result.updaterPanel||!result.updaterDisabled||result.version!==app.getVersion())throw Error(JSON.stringify(result));
+        if(!result.title.includes('Ритм')||result.days!==7||(result.cards<0||result.cards>22)||result.hasNode||!result.storageWorks||!result.practicePreserved||!result.guideComplete||!result.calendarWorks||!result.enhancements||!result.backupWorks||!result.updaterPanel||!result.updaterDisabled||result.version!==app.getVersion())throw Error(JSON.stringify(result));
         clearTimeout(timer);console.log('PASS: desktop renderer, sandbox, preload IPC, 7-step tutorial, preserved planner data and updater panel');app.exit(0);
       }catch(error){console.error(error);app.exit(1);}
     });
