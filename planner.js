@@ -10,16 +10,44 @@
  function clock(n){return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');}
  function minutes(s){return /^([01]\d|2[0-3]):[0-5]\d$/.test(s)?Number(s.slice(0,2))*60+Number(s.slice(3)):null;}
  function rule(settings,date){const i=(parse(date).getDay()+6)%7,r=settings.dayRules?.[i]||{};return {minutes:settings.dateOverrides?.[date]?.minutes??r.minutes??settings.minutes,maxTasks:r.maxTasks??settings.maxTasks,start:r.start??540,end:r.end??1260};}
+
+ function merge(ranges){const result=[];for(const r of ranges.filter(r=>Number.isInteger(r.start)&&Number.isInteger(r.end)&&r.start<r.end).map(r=>({...r})).sort((a,b)=>a.start-b.start)){const last=result.at(-1);if(last&&r.start<=last.end)last.end=Math.max(last.end,r.end);else result.push(r);}return result;}
+ function windows(settings,date){
+   const r=rule(settings,date),day=settings.dayRules?.[(parse(date).getDay()+6)%7]||{},exception=settings.exceptions?.[date];
+   let free=merge(exception?.windows??day.windows??[{start:r.start,end:r.end}]);
+   const busy=(settings.busyBlocks||[]).filter(b=>b.days.includes((parse(date).getDay()+6)%7)).concat(exception?.busy||[]);
+   for(const block of merge(busy)){const next=[];for(const w of free){if(block.end<=w.start||block.start>=w.end)next.push(w);else{if(block.start>w.start)next.push({start:w.start,end:block.start});if(block.end<w.end)next.push({start:block.end,end:w.end});}}free=next;}
+   return free;
+ }
  function slot(task,date,entries,tasks,settings){
-   const r=rule(settings,date),items=entries.filter(e=>e.date===date),byId=new Map(tasks.map(t=>[t.id,t]));
+   const r=rule(settings,date),items=entries.filter(e=>e.date===date),byId=new Map(tasks.map(t=>[t.id,t])),gap=settings.breakMinutes||0;
    if(items.length>=r.maxTasks||items.reduce((n,e)=>n+(byId.get(e.taskId)?.duration||0),0)+task.duration>r.minutes)return null;
-   const earliest=date===settings.nowDate?Math.max(r.start,settings.nowMinute||0):r.start;
-   const occupied=[];let cursor=r.start;
-   for(const e of items.slice().sort((a,b)=>(a.start??1440)-(b.start??1440))){const duration=byId.get(e.taskId)?.duration||0,start=Number.isInteger(e.start)?e.start:cursor;occupied.push([start,start+duration]);cursor=Math.max(cursor,start+duration);}
-   const fixed=minutes(task.time||'');
-   if(fixed!==null)return fixed>=earliest&&fixed+task.duration<=r.end&&occupied.every(([a,b])=>fixed+task.duration<=a||fixed>=b)?fixed:null;
-   let start=earliest;for(const [a,b] of occupied.sort((a,b)=>a[0]-b[0])){if(start+task.duration<=a)break;start=Math.max(start,b);}
-   return start+task.duration<=r.end?start:null;
+   const earliest=date===settings.nowDate?Math.max(0,settings.nowMinute||0):0,free=windows(settings,date),occupied=[];let cursor=free[0]?.start??r.start;
+   for(const e of entries.filter(e=>e.date===date||(gap&&Number.isInteger(e.start)&&Math.abs(diff(e.date,date))===1)).sort((a,b)=>(a.start??1440)-(b.start??1440))){const duration=byId.get(e.taskId)?.duration||0,start=Number.isInteger(e.start)?e.start+diff(e.date,date)*1440:cursor;occupied.push({start:start-gap,end:start+duration+gap});if(e.date===date)cursor=Math.max(cursor,start+duration+gap);}
+   const blocks=merge(occupied),fixed=minutes(task.time||'');
+   if(fixed!==null)return fixed>=earliest&&free.some(w=>fixed>=w.start&&fixed+task.duration<=w.end)&&blocks.every(b=>fixed+task.duration<=b.start||fixed>=b.end)?fixed:null;
+   for(const w of free){let start=Math.max(w.start,earliest);for(const b of blocks){if(start+task.duration<=b.start)break;if(start<b.end)start=b.end;}if(start+task.duration<=w.end)return start;}
+   return null;
+ }
+ function conflicts(tasks,settings,entries){
+   const byId=new Map(tasks.map(t=>[t.id,t])),result=[],gap=settings.breakMinutes||0;
+   for(const e of entries){const t=byId.get(e.taskId);if(!t||e.done||!Number.isInteger(e.start))continue;const reasons=[];
+     if(!windows(settings,e.date).some(w=>e.start>=w.start&&e.start+t.duration<=w.end))reasons.push('Пересекается с занятостью или выходит за свободные окна.');
+     if(entries.some(other=>other.id!==e.id&&Math.abs(diff(other.date,e.date))<=1&&Number.isInteger(other.start)&&byId.has(other.taskId)&&e.start<other.start+diff(other.date,e.date)*1440+byId.get(other.taskId).duration+gap&&e.start+t.duration+gap>other.start+diff(other.date,e.date)*1440))reasons.push('Не хватает перерыва или есть пересечение с другим делом.');
+     if(reasons.length)result.push({id:e.id,taskId:e.taskId,date:e.date,reasons});
+   }return result;
+ }
+ function suggestRebook(task,source,entries,tasks,settings,today){
+   if(task.paused||source.done)return null;
+   const first=source.date>today?source.date:today,others=entries.filter(e=>e.id!==source.id);
+   for(let offset=0;offset<=30;offset++){const date=add(first,offset);if(!eligible(task,date,others,settings,tasks)){const start=slot(task,date,others,tasks,settings);if(date!==source.date||start!==source.start)return {date,start};}}
+   return null;
+ }
+ function assess(tasks,settings,week){
+   const dates=Array.from({length:7},(_,i)=>add(week,i));let demand=0,count=0;
+   for(const t of tasks.filter(t=>!t.paused)){const repeats=t.mode==='weekly'?t.frequency:dates.filter(d=>diff(d,t.anchor)>=0&&diff(d,t.anchor)%t.interval===0).length;demand+=repeats*t.duration;count+=repeats;}
+   const available=dates.reduce((n,d)=>n+Math.min(rule(settings,d).maxTasks?rule(settings,d).minutes:0,windows(settings,d).reduce((s,w)=>s+w.end-w.start,0)),0);
+   return {demand,available,count,over:Math.max(0,demand-available),minimumBreaks:Math.max(0,count-7)*(settings.breakMinutes||0)};
  }
  function eligible(task,date,entries,settings,tasks){
    if(!task.days.includes((parse(date).getDay()+6)%7))return 'day';
@@ -45,8 +73,8 @@
        for(let j=pos;j<candidates.length;j++){const i=candidates[j];if(chosen.every(k=>Math.abs(i-k)>=task.gap+1))walk(j+1,[...chosen,i]);}
      }
      walk(0,[]);
-     for(const i of best)entries.push({id:uid(),taskId:task.id,date:dates[i],start:slot(task,dates[i],entries,tasks,settings),done:false,pinned:false});
-     if(best.length<need)issues.push({taskId:task.id,missing:need-best.length,reasons});
+     let added=0;for(const i of best){const start=slot(task,dates[i],[...entries,...neighbors],tasks,settings);if(start!==null){entries.push({id:uid(),taskId:task.id,date:dates[i],start,done:false,pinned:false});added++;}}
+     if(added<need)issues.push({taskId:task.id,missing:need-added,reasons});
    }
    return {entries,issues};
  }
@@ -63,13 +91,13 @@
    else if(entry.pinned)messages.push('День закреплён вами. Ручное закрепление может превышать лимиты.');
    else messages.push('Выбран один из подходящих дней: учитываются свободное время, частота, перерывы и нагрузка. Между допустимыми вариантами есть случайный выбор.');
    messages.push('Подходящие дни: '+task.days.map(i=>['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]).join(', ')+'.');
-   messages.push('Свободные часы: '+clock(r.start)+'–'+clock(r.end)+'. Нагрузка дня: '+load+' из '+r.minutes+' мин.');
+   messages.push('Свободные часы: '+(windows(settings,entry.date).map(w=>clock(w.start)+'–'+clock(w.end)).join(', ')||'нет')+'. Нагрузка дня: '+load+' из '+r.minutes+' мин.');
    if(task.time)messages.push('Задано точное начало: '+task.time+'.');
    if(task.gap)messages.push('Между повторениями — минимум '+task.gap+' полных дней.');
    if(load>r.minutes)messages.push('Лимит превышен сохранёнными или закреплёнными делами. Их можно изменить вручную.');
    if(Number.isInteger(entry.start)&&(entry.start<r.start||entry.start+task.duration>r.end))messages.push('Сохранённое время выходит за текущие свободные часы. Открепите невыполненное дело и перемешайте неделю, чтобы подобрать новое время.');
-   return messages;
+   if(settings.breakMinutes)messages.push('Перерыв между делами — '+settings.breakMinutes+' мин.');for(const c of conflicts(tasks,settings,entries.filter(e=>Math.abs(diff(e.date,entry.date))<=1)).filter(c=>c.id===entry.id))messages.push(...c.reasons);return messages;
  }
- const api={dateKey,parse,add,diff,monday,uid,clock,minutes,rule,slot,eligible,generate,suggestMove,explain};
+ const api={dateKey,parse,add,diff,monday,uid,clock,minutes,rule,merge,windows,slot,conflicts,suggestRebook,assess,eligible,generate,suggestMove,explain};
  if(typeof module!=='undefined')module.exports=api;root.Planner=api;
 })(typeof window!=='undefined'?window:globalThis);

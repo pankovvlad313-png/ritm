@@ -1,7 +1,7 @@
 (function(){
   'use strict';
   const api=window.ritmDesktop;if(!api)return;
-  let update={status:'idle',currentVersion:'1.2.0',percent:0};
+  let update={status:'idle',currentVersion:'1.3.0',percent:0};
   const labels={idle:'Обновления проверяются автоматически.',checking:'Проверяем обновления…',current:'Установлена последняя версия.',downloading:'Загружаем обновление',ready:'Обновление готово к установке.',installing:'Перезапускаем приложение…',error:'Не удалось проверить или скачать обновление. Проверьте интернет и попробуйте ещё раз.',disabled:'В режиме разработки обновления отключены.'};
   function draw(){
     const main=document.querySelector('main');
